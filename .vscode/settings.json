@@ -1,0 +1,6 @@
+{
+    "cmake.configureOnOpen": true,
+    "editor.formatOnPaste": true,
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "ms-vscode.cpptools"
+}

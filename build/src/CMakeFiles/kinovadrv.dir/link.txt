@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC  -Wall -Werror  -shared -Wl,-soname,libkinovadrv.so.0 -o libkinovadrv.so.0.1.0 CMakeFiles/kinovadrv.dir/kinovadrv.cpp.o CMakeFiles/kinovadrv.dir/logger.cpp.o 

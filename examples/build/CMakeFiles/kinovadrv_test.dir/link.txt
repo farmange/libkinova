@@ -1,0 +1,1 @@
+/usr/bin/c++    -rdynamic CMakeFiles/kinovadrv_test.dir/test.cpp.o  -o kinovadrv_test -Wl,-rpath,/home/ubuntu/workspace/libkinova/examples/../build/src ../../build/src/libkinovadrv.so 

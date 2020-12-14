@@ -1,0 +1,46 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+../../include/kinovadrv.h
+stdio.h
+-
+string.h
+-
+string
+-
+fcntl.h
+-
+errno.h
+-
+termios.h
+-
+unistd.h
+-
+
+../../include/logger.h
+string
+-
+sstream
+-
+iostream
+-
+
+/home/ubuntu/workspace/libkinova/examples/test.cpp
+kinovadrv.h
+/home/ubuntu/workspace/libkinova/examples/kinovadrv.h
+logger.h
+/home/ubuntu/workspace/libkinova/examples/logger.h
+stdio.h
+-
+getopt.h
+-
+iostream
+-
+sstream
+-
+
