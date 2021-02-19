@@ -19,16 +19,17 @@ namespace KinovaApi
             level_string = "DEBUG";
             break;
         case INFO:
-            level_string = "INFO";
+            level_string = " INFO";
             break;
         case WARNING:
-            level_string = "WARNING";
+            level_string = " WARN";
             break;
         case ERROR:
             level_string = "ERROR";
             break;
         }
         std::cout << "[" << level_string << "] : " << s;
+        std::cout.flush();
         return;
     }
     void Logger::info_stream(std::stringstream &ss)

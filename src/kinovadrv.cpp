@@ -13,6 +13,7 @@ namespace KinovaApi
 
     CommLayer::CommLayer()
     {
+        init_flag_ = false;
         return;
     }
 
@@ -20,6 +21,11 @@ namespace KinovaApi
     {
         // print(DEBUG) << "Close the RS485 port..." << endl;
         LOG_DEBUG("Close the RS485 port...");
+        if (init_flag_ == false)
+        {
+            LOG_ERROR("Device not initialize...");
+            return COMM_INIT_ERROR;
+        }
 #ifndef DEBUG_STUB_MSG
         close(serial_port_);
 #endif
@@ -30,6 +36,7 @@ namespace KinovaApi
     {
         device_ = device;
         baudrate_ = baudrate;
+        init_flag_ = false;
         // print(DEBUG) << "Initialize RS485 interface on " << device_.c_str() << "..." << endl;
         LOG_DEBUG_STREAM("Initialize RS485 interface on " << device_.c_str() << "...");
 #ifndef DEBUG_STUB_MSG
@@ -93,14 +100,19 @@ namespace KinovaApi
             return COMM_INIT_ERROR;
         }
 #endif
+        init_flag_ = true;
 
         return COMM_OK;
     }
 
     CommLayer::CommStatus_t CommLayer::commLayerRead(message_t *message_buffer, const int nb_msg_to_read, int &nb_msg_read)
     {
-        // print(DEBUG) << "CommLayerRead" << endl;
+        if (init_flag_ == false)
+        {
+            return COMM_INIT_ERROR;
+        }
         LOG_DEBUG("CommLayerRead");
+        // print(DEBUG) << "CommLayerRead" << endl;
 #ifdef DEBUG_STUB_MSG
         int bytes_read = nb_msg_to_read * sizeof(message_t);
         memset(message_buffer, '\0', bytes_read);
@@ -122,6 +134,10 @@ namespace KinovaApi
     CommLayer::CommStatus_t CommLayer::commLayerWrite(message_t *message_buffer, const int nb_msg_to_send, int &nb_msg_sent)
     {
         // print(DEBUG) << "CommLayerWrite" << endl;
+        if (init_flag_ == false)
+        {
+            return COMM_INIT_ERROR;
+        }
         LOG_DEBUG("CommLayerWrite");
 #ifdef DEBUG_STUB_MSG
         int bytes_sent = nb_msg_to_send * sizeof(message_t);
@@ -134,9 +150,7 @@ namespace KinovaApi
             return COMM_WRITE_ERROR;
         }
         nb_msg_sent = bytes_sent / sizeof(message_t);
-        // print(DEBUG) << "Write " << nb_msg_sent << " message (" << bytes_sent << " bytes)" << endl;
         LOG_DEBUG_STREAM("Write " << nb_msg_sent << " message (" << bytes_sent << " bytes)");
-        // hexDump(DEBUG, "message_buffer", message_buffer, sizeof(message_t));
         LOG_HEXDUMP(Logger::DEBUG, "message_buffer", message_buffer, nb_msg_sent * sizeof(message_t));
         return COMM_OK;
     }
@@ -145,13 +159,22 @@ namespace KinovaApi
     {
     }
 
-    APILayer::ApiStatus_t APILayer::init()
+    APILayer::ApiStatus_t APILayer::init(const std::string device, const bool &debug_log)
     {
-        printf("initAPI");
-        if (comm_.commLayerInit("/dev/ttyACM1", B115200) != CommLayer::COMM_OK)
+        api_mutex_.lock();
+
+        LOG_DEBUG_STREAM("Initialize APILayer instance... (debug logging : " << std::boolalpha << debug_log << ")");
+        if (debug_log == false)
+        {
+            Logger::instance().setLevel(Logger::ERROR);
+        }
+
+        if (comm_.commLayerInit(device.c_str(), B115200) != CommLayer::COMM_OK)
         {
             return API_INIT_ERROR;
         }
+        api_mutex_.unlock();
+
         return API_OK;
     }
 
@@ -159,43 +182,48 @@ namespace KinovaApi
     {
         int nb_msg_sent = 0;
         int nb_msg_read = 0;
-        int write_err_count = 0;
-        int read_err_count = 0;
 
-        while (1)
+        for (int i = 0; i < MAX_WRITE_RETRY; i++)
         {
+            bool transmission_ok = false;
             comm_.commLayerWrite(writeMessage, 1, nb_msg_sent);
-            if (nb_msg_sent == 1)
+            if (nb_msg_sent != 1)
             {
-                /* Message sent */
-                break;
+                /* Try to send message again */
+                usleep(2);
+                LOG_DEBUG_STREAM("Fail to write message (nb_msg_sent=" << nb_msg_sent << ")");
+                continue;
             }
 
-            if (write_err_count > MAX_WRITE_RETRY)
+            usleep(50);
+
+            for (int j = 0; j < MAX_READ_RETRY; j++)
             {
-                return API_WRITE_ERROR;
+                comm_.commLayerRead(readMessage, expectedResponseMsg, nb_msg_read);
+                if (nb_msg_read != expectedResponseMsg)
+                {
+                    /* Try to receive message again */
+                    usleep(2);
+                    LOG_DEBUG_STREAM("Fail to read message (nb_msg_read=" << nb_msg_read << ")");
+                    continue;
+                }
+
+                LOG_DEBUG_STREAM("Message successfully write and reply read");
+                transmission_ok = true;
+                break;
             }
-            write_err_count++;
-            usleep(2);
+            if (transmission_ok)
+            {
+                break;
+            }
         }
-
-        usleep(50);
-
-        while (1)
+        if (nb_msg_sent != 1)
         {
-            comm_.commLayerRead(readMessage, expectedResponseMsg, nb_msg_read);
-            if (nb_msg_read == expectedResponseMsg)
-            {
-                /* Expected message received */
-                break;
-            }
-
-            if (read_err_count > MAX_READ_RETRY)
-            {
-                return API_READ_ERROR;
-            }
-            read_err_count++;
-            usleep(2);
+            return API_WRITE_ERROR;
+        }
+        if (nb_msg_read != expectedResponseMsg)
+        {
+            return API_READ_ERROR;
         }
 
         return API_OK;
@@ -244,6 +272,8 @@ namespace KinovaApi
     APILayer::ApiStatus_t
     APILayer::deviceInitialisation(const uint16_t &jointAddress, float &jointPosition)
     {
+        api_mutex_.lock();
+
         ApiStatus_t status;
         CommLayer::message_t msgWrite, msgRead;
         msgWrite.Command = RS485_MSG_SET_ADDRESS;
@@ -257,9 +287,63 @@ namespace KinovaApi
         status = readWrite_(&msgWrite, &msgRead, getExpectedReply_(RS485_MSG_SET_ADDRESS));
         if (status != API_OK)
         {
+            api_mutex_.unlock();
             return status;
         }
         jointPosition = msgRead.DataFloat[1];
+        api_mutex_.unlock();
+
+        return API_OK;
+    }
+
+    APILayer::ApiStatus_t
+    APILayer::startMotorControl(const uint16_t &jointAddress)
+    {
+        api_mutex_.lock();
+
+        ApiStatus_t status;
+        CommLayer::message_t msgWrite, msgRead;
+        msgWrite.Command = RS485_MSG_STAR_ASSERV;
+        msgWrite.SourceAddress = 0x00;
+        msgWrite.DestinationAddress = jointAddress;
+        msgWrite.DataLong[0] = jointAddress;
+        msgWrite.DataLong[1] = RS485_MSG_STAR_ASSERV;
+        msgWrite.DataLong[2] = 0;
+        msgWrite.DataLong[3] = 0;
+
+        status = readWrite_(&msgWrite, &msgRead, getExpectedReply_(RS485_MSG_STAR_ASSERV));
+        if (status != API_OK)
+        {
+            api_mutex_.unlock();
+            return status;
+        }
+        api_mutex_.unlock();
+
+        return API_OK;
+    }
+
+    APILayer::ApiStatus_t
+    APILayer::stopMotorControl(const uint16_t &jointAddress)
+    {
+        api_mutex_.lock();
+
+        ApiStatus_t status;
+        CommLayer::message_t msgWrite, msgRead;
+        msgWrite.Command = RS485_MSG_STOP_ASSERV;
+        msgWrite.SourceAddress = 0x00;
+        msgWrite.DestinationAddress = jointAddress;
+        msgWrite.DataLong[0] = jointAddress;
+        msgWrite.DataLong[1] = RS485_MSG_STOP_ASSERV;
+        msgWrite.DataLong[2] = 0;
+        msgWrite.DataLong[3] = 0;
+
+        status = readWrite_(&msgWrite, &msgRead, getExpectedReply_(RS485_MSG_STOP_ASSERV));
+        if (status != API_OK)
+        {
+            api_mutex_.unlock();
+            return status;
+        }
+        api_mutex_.unlock();
 
         return API_OK;
     }
@@ -267,6 +351,8 @@ namespace KinovaApi
     APILayer::ApiStatus_t
     APILayer::getActualPosition(const uint16_t &jointAddress, float &jointCurrent, float &jointPositionHall, float &jointSpeed, float &jointTorque)
     {
+        api_mutex_.lock();
+
         ApiStatus_t status;
         CommLayer::message_t msgWrite, msgRead;
         msgWrite.Command = RS485_MSG_GET_ACTUALPOSITION;
@@ -280,12 +366,15 @@ namespace KinovaApi
         status = readWrite_(&msgWrite, &msgRead, getExpectedReply_(RS485_MSG_GET_ACTUALPOSITION));
         if (status != API_OK)
         {
+            api_mutex_.unlock();
             return status;
         }
         jointCurrent = msgRead.DataFloat[0];
         jointPositionHall = msgRead.DataFloat[1];
         jointSpeed = msgRead.DataFloat[2];
         jointTorque = msgRead.DataFloat[3];
+        api_mutex_.unlock();
+
         return API_OK;
     }
 
@@ -294,6 +383,8 @@ namespace KinovaApi
                                  float &jointSpeed, float &jointTorque, float &jointPMW, float &jointPositionOptical,
                                  short &jointAccelX, short &jointAccelY, short &jointAccelZ, short &jointTemp)
     {
+        api_mutex_.lock();
+
         ApiStatus_t status;
         CommLayer::message_t msgWrite, msgRead[2];
         msgWrite.Command = RS485_MSG_GET_POSITION_COMMAND_ALL_VALUES;
@@ -307,6 +398,7 @@ namespace KinovaApi
         status = readWrite_(&msgWrite, &msgRead[0], getExpectedReply_(RS485_MSG_GET_POSITION_COMMAND_ALL_VALUES));
         if (status != API_OK)
         {
+            api_mutex_.unlock();
             return status;
         }
         jointCurrent = msgRead[0].DataFloat[0];
@@ -320,12 +412,48 @@ namespace KinovaApi
         jointAccelY = msgRead[1].DataShort[5];
         jointAccelZ = msgRead[1].DataShort[6];
         jointTemp = msgRead[1].DataShort[7];
+        api_mutex_.unlock();
+
+        return API_OK;
+    }
+
+    APILayer::ApiStatus_t
+    APILayer::setPositionCommand(const uint16_t &jointAddress, const float &jointCommand, float &jointCurrent, float &jointPositionHall,
+                                 float &jointSpeed, float &jointTorque)
+    {
+        api_mutex_.lock();
+
+        ApiStatus_t status;
+        CommLayer::message_t msgWrite, msgRead[2];
+        msgWrite.Command = RS485_MSG_GET_POSITION_COMMAND;
+        msgWrite.SourceAddress = 0x00;
+        msgWrite.DestinationAddress = jointAddress;
+        msgWrite.DataFloat[0] = jointCommand;
+        msgWrite.DataFloat[1] = jointCommand;
+        msgWrite.DataLong[2] = 0;
+        msgWrite.DataLong[3] = 0;
+
+        status = readWrite_(&msgWrite, &msgRead[0], getExpectedReply_(RS485_MSG_GET_POSITION_COMMAND));
+        if (status != API_OK)
+        {
+            api_mutex_.unlock();
+            return status;
+        }
+        jointCurrent = msgRead[0].DataFloat[0];
+        jointPositionHall = msgRead[0].DataFloat[1];
+        jointSpeed = msgRead[0].DataFloat[2];
+        jointTorque = msgRead[0].DataFloat[3];
+
+        api_mutex_.unlock();
 
         return API_OK;
     }
 
     APILayer::ApiStatus_t APILayer::getPosition()
     {
+        api_mutex_.lock();
+        api_mutex_.unlock();
+
         return API_OK;
     }
 
