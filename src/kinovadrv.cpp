@@ -37,15 +37,17 @@ namespace KinovaApi
         device_ = device;
         baudrate_ = baudrate;
         init_flag_ = false;
-        // print(DEBUG) << "Initialize RS485 interface on " << device_.c_str() << "..." << endl;
         LOG_DEBUG_STREAM("Initialize RS485 interface on " << device_.c_str() << "...");
 #ifndef DEBUG_STUB_MSG
         serial_port_ = open(device_.c_str(), O_RDWR);
-
+        if (serial_port_ < 0)
+        {
+            LOG_DEBUG_STREAM("Error " << errno << " from open: " << strerror(errno));
+            return COMM_INIT_ERROR;
+        }
         // Read in existing settings, and handle any error
         if (tcgetattr(serial_port_, &tty_settings_) != 0)
         {
-            // print(DEBUG) << "Error " << errno << " from tcgetattr: " << strerror(errno) << endl;
             LOG_DEBUG_STREAM("Error " << errno << " from tcgetattr: " << strerror(errno));
 
             return COMM_INIT_ERROR;
@@ -93,10 +95,7 @@ namespace KinovaApi
         // Save tty_settings_ settings, also checking for error
         if (tcsetattr(serial_port_, TCSANOW, &tty_settings_) != 0)
         {
-            // print(ERROR, std::stringstream() << "Error " << errno + " from tcsetattr: " << strerror(errno));
-            // print(DEBUG) << "Error " << errno + " from tcsetattr: " << strerror(errno) << endl;
             LOG_DEBUG_STREAM("Error " << errno + " from tcsetattr: " << strerror(errno));
-
             return COMM_INIT_ERROR;
         }
 #endif
@@ -112,10 +111,9 @@ namespace KinovaApi
             return COMM_INIT_ERROR;
         }
         LOG_DEBUG("CommLayerRead");
-        // print(DEBUG) << "CommLayerRead" << endl;
+        memset(message_buffer, '\0', nb_msg_to_read * sizeof(message_t));
 #ifdef DEBUG_STUB_MSG
         int bytes_read = nb_msg_to_read * sizeof(message_t);
-        memset(message_buffer, '\0', bytes_read);
 #else
         int bytes_read = read(serial_port_, message_buffer, nb_msg_to_read * sizeof(message_t));
 #endif
@@ -124,9 +122,7 @@ namespace KinovaApi
             return COMM_READ_ERROR;
         }
         nb_msg_read = bytes_read / sizeof(message_t);
-        // print(DEBUG) << "Read " << nb_msg_read << " message (" << bytes_read << " bytes)" << endl;
         LOG_DEBUG_STREAM("Read " << nb_msg_read << " message (" << bytes_read << " bytes)");
-        // hexDump(DEBUG, "message_buffer", message_buffer, nb_msg_read * sizeof(message_t));
         LOG_HEXDUMP(Logger::DEBUG, "message_buffer", message_buffer, nb_msg_read * sizeof(message_t));
         return COMM_OK;
     }
@@ -163,12 +159,13 @@ namespace KinovaApi
     {
         api_mutex_.lock();
 
-        LOG_DEBUG_STREAM("Initialize APILayer instance... (debug logging : " << std::boolalpha << debug_log << ")");
+        LOG_DEBUG_STREAM("Initialize APILayer instance... (debug logging : " << std::boolalpha << debug_log << ") ...");
         if (debug_log == false)
         {
             Logger::instance().setLevel(Logger::ERROR);
         }
 
+        LOG_DEBUG_STREAM("Initialize CommLayer...");
         if (comm_.commLayerInit(device.c_str(), B115200) != CommLayer::COMM_OK)
         {
             return API_INIT_ERROR;
@@ -291,6 +288,32 @@ namespace KinovaApi
             return status;
         }
         jointPosition = msgRead.DataFloat[1];
+        api_mutex_.unlock();
+
+        return API_OK;
+    }
+
+    APILayer::ApiStatus_t
+    APILayer::clearError(const uint16_t &jointAddress)
+    {
+        api_mutex_.lock();
+
+        ApiStatus_t status;
+        CommLayer::message_t msgWrite, msgRead;
+        msgWrite.Command = RS485_MSG_CLEAR_FAULT_FLAG;
+        msgWrite.SourceAddress = 0x00;
+        msgWrite.DestinationAddress = jointAddress;
+        msgWrite.DataLong[0] = 0x00;
+        msgWrite.DataLong[1] = 0x00;
+        msgWrite.DataLong[2] = 0;
+        msgWrite.DataLong[3] = 0;
+
+        status = readWrite_(&msgWrite, &msgRead, getExpectedReply_(RS485_MSG_CLEAR_FAULT_FLAG));
+        if (status != API_OK)
+        {
+            api_mutex_.unlock();
+            return status;
+        }
         api_mutex_.unlock();
 
         return API_OK;
