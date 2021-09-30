@@ -1,3 +1,0 @@
-/home/ubuntu/workspace/libkinova/examples/build/CMakeFiles/rebuild_cache.dir
-/home/ubuntu/workspace/libkinova/examples/build/CMakeFiles/kinovadrv_test.dir
-/home/ubuntu/workspace/libkinova/examples/build/CMakeFiles/edit_cache.dir

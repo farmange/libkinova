@@ -1,5 +1,0 @@
-/home/ubuntu/workspace/libkinova/build/CMakeFiles/rebuild_cache.dir
-/home/ubuntu/workspace/libkinova/build/CMakeFiles/edit_cache.dir
-/home/ubuntu/workspace/libkinova/build/src/CMakeFiles/rebuild_cache.dir
-/home/ubuntu/workspace/libkinova/build/src/CMakeFiles/kinovadrv.dir
-/home/ubuntu/workspace/libkinova/build/src/CMakeFiles/edit_cache.dir

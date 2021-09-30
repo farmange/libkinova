@@ -68,8 +68,8 @@ int main(int argc, char *argv[])
     {
         data_to_send.Command = 0x0; // DeviceInitialisation 0x01//GetActualPosition
         data_to_send.SourceAddress = 0x00;
-        data_to_send.DestinationAddress = 0x11; //17
-        data_to_send.DataLong[0] = 0x11;
+        data_to_send.DestinationAddress = 0x16; //17
+        data_to_send.DataLong[0] = 0x16;
         data_to_send.DataLong[1] = 0;
         data_to_send.DataLong[2] = 0.0;
         data_to_send.DataLong[3] = 0.0;
@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
         LOG_INFO_STREAM("JointCommandComm = " << JointCommandComm);
         data_to_send.Command = 0x14; // DeviceInitialisation 0x01//GetActualPosition
         data_to_send.SourceAddress = 0x00;
-        data_to_send.DestinationAddress = 0x11; //17
+        data_to_send.DestinationAddress = 0x16; //17
         data_to_send.DataFloat[0] = JointCommandComm;
         data_to_send.DataFloat[1] = JointCommandComm;
         data_to_send.DataLong[2] = 0.0;
@@ -145,9 +145,9 @@ int main(int argc, char *argv[])
 
     usleep(1500000);
     APILayer api;
-    api.init();
+    api.init(device, true);
     float position;
-    APILayer::ApiStatus_t status = api.deviceInitialisation(0x11, position);
+    APILayer::ApiStatus_t status = api.deviceInitialisation(0x16, position);
     if (status == APILayer::API_OK)
     {
         LOG_INFO_STREAM("DeviceInitialisation position: " << position);
@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
         LOG_INFO_STREAM("DeviceInitialisation error: " << status);
     }
 
-    uint16_t jointAddress = 0x11;
+    uint16_t jointAddress = 0x16;
     float jointCommand = position;
 
     float jointCurrent = 0;
@@ -171,9 +171,9 @@ int main(int argc, char *argv[])
     short jointAccelZ = 0;
     short jointTemp = 0;
     count = 0;
-    while (count < 10)
+    while (count < 500)
     {
-        jointCommand -= 60 * (0.0025);
+        jointCommand += 60 * (0.0025);
 
         api.setCommandAllValue(jointAddress, jointCommand, jointCurrent, jointPositionHall,
                                jointSpeed, jointTorque, jointPMW, jointPositionOptical,
@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
         count++;
     }
 
-    KinovaApi::APILayer *api_ptr = create();
-    api_ptr->init();
+    // KinovaApi::APILayer *api_ptr = create();
+    // api_ptr->init();
     return 0;
 }
