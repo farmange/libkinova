@@ -14,70 +14,11 @@ check_make_ok() {
 
 sudo=${LIBKINOVA_SUDO-sudo}
 
-# if [ x$1 = "xclean" ]; then
-#   cd wiringPi
-#   echo -n "wiringPi:   "	; make clean
-#   cd ../devLib
-#   echo -n "DevLib:     "	; make clean
-#   cd ../gpio
-#   echo -n "gpio:       "	; make clean
-#   cd ../examples
-#   echo -n "Examples:   "	; make clean
-#   cd Gertboard
-#   echo -n "Gertboard:  "	; make clean
-#   cd ../PiFace
-#   echo -n "PiFace:     "	; make clean
-#   cd ../q2w
-#   echo -n "Quick2Wire: "	; make clean
-#   cd ../PiGlow
-#   echo -n "PiGlow:     "	; make clean
-#   cd ../scrollPhat
-#   echo -n "scrollPhat: "	; make clean
-#   cd ../..
-#   echo -n "Deb: " ; rm  -f debian-template/wiringpi*.deb
-#   echo
-#   exit
-# fi
-
-# if [ x$1 = "xuninstall" ]; then
-#   cd wiringPi
-#   echo -n "wiringPi: " ; $sudo make uninstall
-#   cd ../devLib
-#   echo -n "DevLib:   " ; $sudo make uninstall
-#   cd ../gpio
-#   echo -n "gpio:     " ; $sudo make uninstall
-#   exit
-# fi
-
-# # Only if you know what you're doing!
-
-# if [ x$1 = "xdebian" ]; then
-#   here=`pwd`
-#   deb_destdir=${here}/debian-template/wiringPi
-#   cd debian-template/wiringPi
-#   rm -rf usr
-#   cd $here/wiringPi
-#   make install-deb DEB_DESTDIR=${deb_destdir}
-#   cd $here/devLib
-#   make install-deb INCLUDE='-I. -I../wiringPi' DEB_DESTDIR=${deb_destdir}
-#   cd $here/gpio
-#   make install-deb INCLUDE='-I../wiringPi -I../devLib' LDFLAGS=-L../debian-template/wiringPi/usr/lib DEB_DESTDIR=${deb_destdir}
-#   cd $here/debian-template
-#   fakeroot dpkg-deb --build wiringPi
-#   mv wiringPi.deb  wiringpi-`cat $here/VERSION`-1.deb
-#   exit
-# fi
-
-# if [ x$1 != "x" ]; then
-#   echo "Usage: $0 [clean | uninstall]"
-#   exit 1
-# fi
-
 echo "libkinova Build script"
 echo "====================="
 echo
 
-$sudo rm -r build
+$sudo rm -rf build
 mkdir build
 cd build
 cmake ..
