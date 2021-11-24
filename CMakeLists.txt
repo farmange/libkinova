@@ -1,6 +1,8 @@
 cmake_minimum_required (VERSION 2.6)
 project (libkinova)
 
+include(GNUInstallDirs)
+
 # The version number.
 set (libkinova_VERSION_MAJOR 0)
 set (libkinova_VERSION_MINOR 1)

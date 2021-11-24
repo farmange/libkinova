@@ -23,7 +23,7 @@ set_target_properties(
 # target_link_libraries (kinovadrv ${Boost_LIBRARIES})
 
 # set the install targets
-install (TARGETS kinova LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+install (TARGETS kinova LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 file (GLOB kinova_header_files ${libkinova_SOURCE_DIR}/include/*.h)
 install (FILES ${kinova_header_files} DESTINATION include/kinova)
